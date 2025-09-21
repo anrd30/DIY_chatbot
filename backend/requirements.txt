@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+langchain
+langchain-community
+sentence-transformers
+torch
+torchvision
+torchaudio
+pypdf
+python-multipart
+pandas
+chromadb
+ollama

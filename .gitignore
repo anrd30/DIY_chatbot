@@ -1,0 +1,48 @@
+# =====================
+# Node / React
+# =====================
+node_modules/
+build/
+dist/
+.env
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.lock
+
+# =====================
+# Python / FastAPI
+# =====================
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+env/
+venv/
+venv
+.venv/
+*.sqlite3
+*.log
+
+# =====================
+# Temporary / Uploads
+# =====================
+temp.pdf
+*.csv
+*.db  # ChromaDB or other vector store files
+*.tmp
+*.bak
+
+# =====================
+# OS / Editor
+# =====================
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# =====================
+# Misc
+# =====================
+*.egg-info/
+dist/
