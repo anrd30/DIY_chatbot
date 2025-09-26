@@ -1,11 +1,12 @@
 # vectorstore.py
 from langchain.vectorstores import Chroma
 
-def build_vectorstore(chunks, embeddings, collection_name="rag_db"):
+def build_vectorstore(chunks, embeddings, collection_name="rag_db",persist_directory="vector_db"):
     """
     Stores chunks + embeddings in ChromaDB for retrieval.
     """
-    vectorstore = Chroma.from_texts(chunks, embedding=embeddings, collection_name=collection_name)
+    vectorstore = Chroma.from_texts(chunks, embedding=embeddings, collection_name=collection_name,persist_directory=persist_directory)
+    vectorstore.persist()  # Save to disk
     return vectorstore
 
 def query_vectorstore(vectorstore, query, top_k=5):

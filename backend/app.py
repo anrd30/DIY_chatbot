@@ -9,8 +9,12 @@ import ollama
 from fastapi.middleware.cors import CORSMiddleware
 import io
 from pydantic import BaseModel
-
+import os
+from starlette.responses import FileResponse
+import shutil
+from langchain.vectorstores import Chroma
 app = FastAPI(title="RAG Chatbot API")
+DB_DIR = "vector_db"
 
 # Global variable to store vectorstore
 vectorstore = None
@@ -56,11 +60,44 @@ async def build_db(
     # Get embedding model (not embeddings)
     embeddings_model = get_embeddings_model(model_name=embedding_model)
     # Build ChromaDB vector store
-    vectorstore = build_vectorstore(chunks, embeddings_model, collection_name="rag_db")
+    vectorstore = build_vectorstore(chunks, embeddings_model, collection_name="rag_db", persist_directory=DB_DIR)
 
     return {"status": "database built", "num_chunks": len(chunks)}
 
+@app.get("/download_db/")
+async def download_db():
+    shutil.make_archive("vector_db_backup", "zip", "vector_db")
+    return FileResponse("vector_db_backup.zip", filename="vector_db_backup.zip")
 
+@app.post("/upload_db/")
+async def upload_db(file: UploadFile = File(...)):
+    global vectorstore
+    import shutil
+    import zipfile
+    import os
+
+    # Close the existing vectorstore if open
+    if vectorstore:
+        try:
+            vectorstore._collection.persist()  # make sure data is saved
+        except:
+            pass
+        vectorstore = None  # release the object
+
+    # Delete old folder safely
+    if os.path.exists("vector_db"):
+        import time
+        time.sleep(0.2)  # slight delay for Windows file handles
+        shutil.rmtree("vector_db", ignore_errors=True)
+
+    # Extract uploaded zip
+    with open("temp.zip", "wb") as f:
+        f.write(await file.read())
+    with zipfile.ZipFile("temp.zip", "r") as zip_ref:
+        zip_ref.extractall("vector_db")
+
+    vectorstore = Chroma(persist_directory="vector_db", collection_name="rag_db")  # reload db
+    return {"status": "database uploaded"}
 # =========================
 # Endpoint 2: Query RAG
 # =========================
@@ -106,7 +143,29 @@ async def status():
         return {"vector_store_ready": True, "num_chunks": len(vectorstore._collection.get()["documents"])}
     else:
         return {"vector_store_ready": False, "num_chunks": 0}
+@app.post("/recommend_chunk_settings/")
+async def recommend_chunk_settings(files: List[UploadFile] = File(...)):
+    def get_recommendation(file_size_kb):
+        if file_size_kb < 50:
+            return {"chunk_size": 300, "chunk_overlap": 30}
+        elif file_size_kb < 500:
+            return {"chunk_size": 600, "chunk_overlap": 60}
+        elif file_size_kb < 2000:
+            return {"chunk_size": 1000, "chunk_overlap": 100}
+        else:
+            return {"chunk_size": 1500, "chunk_overlap": 150}
 
+    total_size_kb = 0
+    for f in files:
+        content = await f.read()
+        total_size_kb += len(content) / 1024
+
+    recommendation = get_recommendation(total_size_kb)
+    return {
+        "recommended_chunk_size": recommendation["chunk_size"],
+        "recommended_chunk_overlap": recommendation["chunk_overlap"],
+        "total_file_size_kb": round(total_size_kb, 2)
+    }
 
 # =========================
 # Run with:

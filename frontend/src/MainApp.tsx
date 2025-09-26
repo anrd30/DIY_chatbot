@@ -9,6 +9,8 @@ function App() {
   const [files, setFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
   const [dbStatus, setDbStatus] = useState<string | null>(null);
+  const [dbUploaded, setDbUploaded] = useState(false);
+
 
   const [chunkSize, setChunkSize] = useState(500);
   const [chunkOverlap, setChunkOverlap] = useState(50);
@@ -20,6 +22,61 @@ function App() {
   const [prompt, setPrompt] = useState("");
   const [chat, setChat] = useState<{ user: string; bot: string }[]>([]);
   const [loading, setLoading] = useState(false);
+
+
+  const downloadDB = async () => {
+  try {
+    const res = await axios.get(`${API_BASE}/download_db/`, {
+      responseType: "blob",
+    });
+    const url = window.URL.createObjectURL(new Blob([res.data]));
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", "vector_db.zip");
+    document.body.appendChild(link);
+    link.click();
+  } catch (error) {
+    alert("Failed to download database");
+  }
+};
+
+const uploadDB = async (file: File) => {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  try {
+    await axios.post(`${API_BASE}/upload_db/`, formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    alert("Database uploaded successfully!");
+    setDbUploaded(true);
+  } catch (error) {
+    alert("Failed to upload database");
+    setDbUploaded(false);
+
+  }
+};
+  const handleRecommendChunkSettings = async () => {
+  if (files.length === 0) return;
+
+  const formData = new FormData();
+  files.forEach((file) => formData.append("files", file));
+
+  try {
+    const res = await axios.post(`${API_BASE}/recommend_chunk_settings/`, formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+
+    setChunkSize(res.data.recommended_chunk_size);
+    setChunkOverlap(res.data.recommended_chunk_overlap);
+
+    alert(
+      `✅ Recommended settings applied!\n\n📦 File size: ${res.data.total_file_size_kb} KB\n🔹 Chunk Size: ${res.data.recommended_chunk_size}\n🔸 Overlap: ${res.data.recommended_chunk_overlap}`
+    );
+  } catch (error) {
+    alert("❌ Failed to fetch recommended chunk settings.");
+  }
+};
 
   // File upload
   const onDrop = (acceptedFiles: File[]) => setFiles(acceptedFiles);
@@ -115,6 +172,13 @@ function App() {
               onChange={(e) => setChunkOverlap(parseInt(e.target.value))}
             />
           </div>
+          <button
+            className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-all duration-200"
+            onClick={handleRecommendChunkSettings}
+            disabled={files.length === 0}
+          >
+            Use Recommended Size
+          </button>
           <div className="flex gap-2">
             <label className="text-zinc-300 font-semibold flex-shrink-0">Embedding Model:</label>
             <select
@@ -125,6 +189,22 @@ function App() {
               <option value="sentence-transformers/all-MiniLM-L6-v2">All-MiniLM-L6-v2</option>
             </select>
           </div>
+          <div className="flex gap-2 mt-4">
+  <button
+    className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-all duration-200"
+    onClick={downloadDB}
+  >
+    Download DB
+  </button>
+
+  <input
+    type="file"
+    accept=".zip,.sqlite3"
+    onChange={(e) => e.target.files && uploadDB(e.target.files[0])}
+    className="px-4 py-2 bg-gray-700 text-white rounded cursor-pointer"
+  />
+</div>
+ 
 
           {/* LLM Model & Instruction */}
           <div className="flex gap-2">
@@ -153,7 +233,7 @@ function App() {
         <button
           className="mt-4 w-full py-2 rounded-lg bg-white/10 hover:bg-white/20 text-white font-semibold transition-all duration-200 disabled:opacity-50"
           onClick={uploadFiles}
-          disabled={files.length === 0 || uploading}
+          disabled={files.length === 0 && !dbUploaded|| uploading}
         >
           {uploading ? "Uploading..." : "Build Knowledge DB"}
         </button>
