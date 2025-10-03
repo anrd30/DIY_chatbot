@@ -9,19 +9,19 @@ function App() {
   const [files, setFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
   const [dbStatus, setDbStatus] = useState<string | null>(null);
-  const [dbUploaded, setDbUploaded] = useState(false);
-
-
+  const [ocrLang, setOcrLang] = useState("eng");
   const [chunkSize, setChunkSize] = useState(500);
   const [chunkOverlap, setChunkOverlap] = useState(50);
   const [embeddingModel, setEmbeddingModel] = useState("sentence-transformers/all-MiniLM-L6-v2");
-
+  const [jsonPreview, setJsonPreview] = useState<any>(null);
   const [llmModel, setLlmModel] = useState("qwen3:1.7b"); // Default LLM model
-  const [llmInstruction, setLlmInstruction] = useState("Answer concisely"); // Default instruction template
-
+  const [llmInstruction, setLlmInstruction] = useState("Answer concisely"); // Default instruction template;
   const [prompt, setPrompt] = useState("");
   const [chat, setChat] = useState<{ user: string; bot: string }[]>([]);
   const [loading, setLoading] = useState(false);
+  const [buildStatus, setBuildStatus] = useState<'idle' | 'building' | 'success' | 'error'>('idle');
+  const [buildError, setBuildError] = useState<string>('');
+  const [queryHistory, setQueryHistory] = useState<Array<{question: string, answer: string, timestamp: Date}>>([]);
 
 
   const downloadDB = async () => {
@@ -40,20 +40,22 @@ function App() {
   }
 };
 
-const uploadDB = async (file: File) => {
+
+  const uploadJsonFile = async (file: File) => {
   const formData = new FormData();
   formData.append("file", file);
 
   try {
-    await axios.post(`${API_BASE}/upload_db/`, formData, {
-      headers: { "Content-Type": "multipart/form-data" },
-    });
-    alert("Database uploaded successfully!");
-    setDbUploaded(true);
+    const res = await axios.post(
+      `${API_BASE}/build_db/?chunk_size=${chunkSize}&chunk_overlap=${chunkOverlap}&embedding_model=${embeddingModel}`,
+      formData,
+      { headers: { "Content-Type": "multipart/form-data" } }
+    );
+    alert("✅ JSON uploaded and processed! " + res.data.num_chunks + " chunks created.");
+    setDbStatus("Database built from JSON! " + res.data.num_chunks + " chunks.");
   } catch (error) {
-    alert("Failed to upload database");
-    setDbUploaded(false);
-
+    alert("❌ Failed to upload JSON file.");
+    setDbStatus("Error uploading JSON file.");
   }
 };
   const handleRecommendChunkSettings = async () => {
@@ -83,7 +85,16 @@ const uploadDB = async (file: File) => {
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
-    accept: { "application/pdf": [".pdf"], "text/csv": [".csv"] },
+      accept: {
+    "application/pdf": [".pdf"],
+    "text/csv": [".csv"],
+    "application/json": [".json"],
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [".docx"],
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation": [".pptx"],
+    "text/plain": [".txt"]
+  },
+
+ 
     multiple: true,
   });
 
@@ -92,20 +103,26 @@ const uploadDB = async (file: File) => {
     setDbStatus(null);
     const formData = new FormData();
     files.forEach((file) => formData.append("files", file));
+    formData.append("ocr_lang", ocrLang);
     try {
+      setBuildStatus('building');
       const res = await axios.post(
         `${API_BASE}/build_db/?chunk_size=${chunkSize}&chunk_overlap=${chunkOverlap}&embedding_model=${embeddingModel}`,
         formData,
         { headers: { "Content-Type": "multipart/form-data" } }
       );
-      setDbStatus("Database built! " + res.data.num_chunks + " chunks.");
+      setBuildStatus('success');
+      setDbStatus(`✅ Database built successfully! ${res.data.num_chunks} chunks created.`);
+      setJsonPreview(res.data.preview || null);
       setFiles([]);
     } catch (e: any) {
-      setDbStatus("Error: " + (e.response?.data?.error || e.message));
+      setBuildStatus('error');
+      setBuildError(e.response?.data?.detail || 'Failed to build database');
     }
     setUploading(false);
   };
 
+  
   // Chat
   const sendPrompt = async () => {
     if (!prompt.trim()) return;
@@ -120,6 +137,11 @@ const uploadDB = async (file: File) => {
       setChat((c) =>
         c.slice(0, -1).concat([{ user: prompt, bot: res.data.answer.message.content }])
       );
+      setQueryHistory(prev => [...prev, {
+        question: prompt,
+        answer: res.data.answer.message.content,
+        timestamp: new Date()
+      }]);
     } catch (e: any) {
       setChat((c) =>
         c.slice(0, -1).concat([{ user: prompt, bot: "Error: " + (e.response?.data?.error || e.message) }])
@@ -137,7 +159,7 @@ const uploadDB = async (file: File) => {
       <p className="text-zinc-400 mb-8 text-lg">Build Your own bot-No code</p>
 
       {/* File Upload */}
-      <GlassCard className="w-full max-w-xl mb-8">
+      <GlassCard className="w-full max-w-4xl mb-8">
         <div {...getRootProps()} className={`border-2 border-dashed rounded-xl p-6 transition-all duration-200 ${isDragActive ? "border-white bg-glass" : "border-zinc-700 bg-glass"}`}>
           <input {...getInputProps()} />
           <p className="text-center text-zinc-300">
@@ -153,6 +175,26 @@ const uploadDB = async (file: File) => {
         </div>
 
         {/* Additional Options */}
+          <div className="flex gap-2">
+    <label className="text-zinc-300 font-semibold flex-shrink-0">OCR Language:</label>
+    <select
+      className="flex-1 rounded-lg bg-zinc-900/80 px-2 py-1 text-white border border-zinc-700 focus:outline-none focus:ring-2 focus:ring-white/30 transition-all"
+      value={ocrLang}
+      onChange={(e) => setOcrLang(e.target.value)}
+    >
+      <option value="eng">English</option>
+      <option value="hin">Hindi</option>
+      <option value="tam">Tamil</option>
+      <option value="tel">Telugu</option>
+      <option value="ben">Bengali</option>
+      <option value="guj">Gujarati</option>
+      <option value="kan">Kannada</option>
+      <option value="mal">Malayalam</option>
+      <option value="mar">Marathi</option>
+      <option value="pan">Punjabi</option>
+      <option value="ori">Odia</option>
+    </select>
+  </div>
         <div className="mt-4 flex flex-col gap-2">
           <div className="flex gap-2">
             <label className="text-zinc-300 font-semibold flex-shrink-0">Chunk Size:</label>
@@ -189,23 +231,6 @@ const uploadDB = async (file: File) => {
               <option value="sentence-transformers/all-MiniLM-L6-v2">All-MiniLM-L6-v2</option>
             </select>
           </div>
-          <div className="flex gap-2 mt-4">
-  <button
-    className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-all duration-200"
-    onClick={downloadDB}
-  >
-    Download DB
-  </button>
-
-  <input
-    type="file"
-    accept=".zip,.sqlite3"
-    onChange={(e) => e.target.files && uploadDB(e.target.files[0])}
-    className="px-4 py-2 bg-gray-700 text-white rounded cursor-pointer"
-  />
-</div>
- 
-
           {/* LLM Model & Instruction */}
           <div className="flex gap-2">
             <label className="text-zinc-300 font-semibold flex-shrink-0">LLM Model:</label>
@@ -214,8 +239,10 @@ const uploadDB = async (file: File) => {
               value={llmModel}
               onChange={(e) => setLlmModel(e.target.value)}
             >
-              <option value="qwen3:1.7b">qwen3:1.7b</option>
-              <option value="qwen2:1.7b">qwen2:1.7b</option>
+              <option value="qwen3:1.7b">qwen3:1.7b (1.4 GB) - Fast & efficient, good for general tasks</option>
+              <option value="tinyllama:latest">tinyllama:latest (637 MB) - Ultra-fast for simple questions</option>
+              <option value="mistral:7b-instruct-q4_K_M">mistral:7b-instruct-q4_K_M (4.4 GB) - Most capable, best for complex analysis</option>
+              <option value="phi:latest">phi:latest (1.6 GB) - Microsoft's model, great for reasoning</option>
             </select>
           </div>
           <div className="flex gap-2">
@@ -233,18 +260,25 @@ const uploadDB = async (file: File) => {
         <button
           className="mt-4 w-full py-2 rounded-lg bg-white/10 hover:bg-white/20 text-white font-semibold transition-all duration-200 disabled:opacity-50"
           onClick={uploadFiles}
-          disabled={files.length === 0 && !dbUploaded|| uploading}
+          disabled={files.length === 0 &&  uploading}
         >
           {uploading ? "Uploading..." : "Build Knowledge DB"}
-        </button>
+          </button>
+      {jsonPreview && (
+        <div className="mt-4">
+          <h2 className="text-lg font-semibold text-white mb-2">Preview</h2>
+          <pre className="bg-zinc-900/80 p-4 rounded text-sm text-green-300 overflow-x-auto max-h-64">
+            {Array.isArray(jsonPreview) ? jsonPreview.join("\n\n") : JSON.stringify(jsonPreview, null, 2)}
+          </pre>
+        </div>
+      )}
+        
 
-        {dbStatus && (
-          <div className="mt-2 text-center text-sm text-zinc-300">{dbStatus}</div>
-        )}
+        
       </GlassCard>
 
       {/* Chat */}
-      <GlassCard className="w-full max-w-xl flex flex-col h-[500px]">
+      <GlassCard className="w-full max-w-4xl flex flex-col h-[500px]">
         <div className="flex-1 overflow-y-auto px-2 py-2 space-y-4">
           {chat.length === 0 && (
             <div className="text-zinc-500 text-center mt-16">
