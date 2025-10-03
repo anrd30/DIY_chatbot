@@ -231,30 +231,8 @@ function App() {
               <option value="sentence-transformers/all-MiniLM-L6-v2">All-MiniLM-L6-v2</option>
             </select>
           </div>
-          {/* LLM Model & Instruction */}
-          <div className="flex gap-2">
-            <label className="text-zinc-300 font-semibold flex-shrink-0">LLM Model:</label>
-            <select
-              className="flex-1 rounded-lg bg-zinc-900/80 px-2 py-1 text-white border border-zinc-700 focus:outline-none focus:ring-2 focus:ring-white/30 transition-all"
-              value={llmModel}
-              onChange={(e) => setLlmModel(e.target.value)}
-            >
-              <option value="qwen3:1.7b">qwen3:1.7b (1.4 GB) - Fast & efficient, good for general tasks</option>
-              <option value="tinyllama:latest">tinyllama:latest (637 MB) - Ultra-fast for simple questions</option>
-              <option value="mistral:7b-instruct-q4_K_M">mistral:7b-instruct-q4_K_M (4.4 GB) - Most capable, best for complex analysis</option>
-              <option value="phi:latest">phi:latest (1.6 GB) - Microsoft's model, great for reasoning</option>
-            </select>
-          </div>
-          <div className="flex gap-2">
-            <label className="text-zinc-300 font-semibold flex-shrink-0">LLM Instruction:</label>
-            <input
-              type="text"
-              className="flex-1 rounded-lg bg-zinc-900/80 px-2 py-1 text-white border border-zinc-700 focus:outline-none focus:ring-2 focus:ring-white/30 transition-all"
-              value={llmInstruction}
-              onChange={(e) => setLlmInstruction(e.target.value)}
-              placeholder="Enter instruction for the LLM"
-            />
-          </div>
+          
+          
         </div>
 
         <button
@@ -294,7 +272,34 @@ function App() {
             </div>
           ))}
         </div>
-        <div className="flex items-center gap-2 mt-4">
+        
+        {/* Moved LLM controls into chat panel */}
+        <div className="px-2 pb-2 space-y-2">
+          <div className="flex gap-2">
+            <label className="text-zinc-300 font-semibold flex-shrink-0">LLM Model:</label>
+            <select
+              className="flex-1 rounded-lg bg-zinc-900/80 px-2 py-1 text-white border border-zinc-700 focus:outline-none focus:ring-2 focus:ring-white/30 transition-all"
+              value={llmModel}
+              onChange={(e) => setLlmModel(e.target.value)}
+            >
+              <option value="qwen3:1.7b">qwen3:1.7b (1.4 GB) - Fast & efficient, good for general tasks</option>
+              <option value="tinyllama:latest">tinyllama:latest (637 MB) - Ultra-fast for simple questions</option>
+              <option value="mistral:7b-instruct-q4_K_M">mistral:7b-instruct-q4_K_M (4.4 GB) - Most capable, best for complex analysis</option>
+              <option value="phi:latest">phi:latest (1.6 GB) - Microsoft's model, great for reasoning</option>
+            </select>
+          </div>
+          <div className="flex gap-2">
+            <label className="text-zinc-300 font-semibold flex-shrink-0">LLM Instruction:</label>
+            <input
+              type="text"
+              className="flex-1 rounded-lg bg-zinc-900/80 px-2 py-1 text-white border border-zinc-700 focus:outline-none focus:ring-2 focus:ring-white/30 transition-all"
+              value={llmInstruction}
+              onChange={(e) => setLlmInstruction(e.target.value)}
+              placeholder="Enter instruction for the LLM"
+            />
+          </div>
+        </div>
+        <div className="flex items-center gap-2 mt-2 px-2">
           <input
             className="flex-1 rounded-lg bg-zinc-900/80 px-4 py-2 text-white placeholder-zinc-500 border border-zinc-700 focus:outline-none focus:ring-2 focus:ring-white/30 transition-all"
             placeholder="Type your question..."
